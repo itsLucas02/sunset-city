@@ -1339,6 +1339,7 @@ function pickMissionType(){
 function ringPhoneAt(ph){
   for(let k=0;k<phones.length;k++){
     phones[k].ringing=false;phones[k].ring.visible=false;phones[k].ringT=0;
+    phones[k].screenMat.emissive.setHex(0x0a3a44);
   }
   if(ph){ph.ringing=true;ph.ringT=0;}
 }
@@ -1363,6 +1364,7 @@ function tryAnswerPhone(){
   const ph=nearRingingPhone(2.8);
   if(!ph)return false;
   ph.ringing=false;ph.ring.visible=false;
+  ph.screenMat.emissive.setHex(0x0a3a44);
   startMission(pickMissionType());
   return true;
 }
@@ -1444,9 +1446,16 @@ function cleanupMission(){
 }
 function missionTick(dt){
   if(!mission.active){
-    let anyRing=false;
-    for(let k=0;k<phones.length;k++)if(phones[k].ringing)anyRing=true;
-    if(!anyRing){
+    // walking up to an idle booth makes it ring for you (the ring follows
+    // the player, GTA1-style); ambient rings elsewhere still happen
+    let anyRing=false,idleNear=null;
+    for(let k=0;k<phones.length;k++){
+      const ph=phones[k];
+      if(ph.ringing){anyRing=true;continue;}
+      if(!idleNear&&dist2(player.pos.x,player.pos.z,ph.x,ph.z)<20)idleNear=ph;
+    }
+    if(idleNear)ringPhoneAt(idleNear);
+    if(!anyRing&&!idleNear){
       phoneCd-=dt;
       if(phoneCd<=0)chooseRingingPhone();
     }
@@ -1463,7 +1472,7 @@ function missionTick(dt){
         const d=dist2(ph.x,ph.z,focusX(),focusZ());
         SFX.ring(Math.max(0,0.07*(1-d/260)));
       }
-      if(ph.ringT>40){ph.ringing=false;ph.ring.visible=false;phoneCd=4;}
+      if(ph.ringT>40){ph.ringing=false;ph.ring.visible=false;ph.screenMat.emissive.setHex(0x0a3a44);phoneCd=4;}
     }
     return;
   }

@@ -33,12 +33,14 @@ hosted build on GitHub Pages once enabled.
   pursuit AI that gets faster at higher heat; evade to cool down
 - **Minimap + health/damage** — circular radar with cop blips, player health,
   per-car damage; cars get totalled, players get WASTED and respawn
-- **Missions & money** — 7 pay phones around the city ring at random; walk up
-  and press **E** to take a job. Three kinds: timed **deliveries** (get the
-  package to the gold beacon), **car boosts** (steal the marked gold Stallion
-  and deliver it), and **hot goods** (a drop that trips the alarm — instant
-  wanted stars). Finish before the timer for a cash time bonus; cash and
-  completed-mission count persist via `localStorage`
+- **Missions & money** — 7 pay phones around the city; a booth rings as you
+  walk up to it (one also rings somewhere across town — follow the cyan
+  minimap blip). Press **E** to take a job. Three kinds: timed
+  **deliveries** (get the package to the gold beacon), **car boosts**
+  (steal the marked gold Stallion and deliver it), and **hot goods** (a
+  drop that trips the alarm — instant wanted stars). Finish before the
+  timer for a cash time bonus; cash and completed-mission count persist
+  via `localStorage`
 - **Procedural audio** — engine, tire skid, horn, crashes, police siren,
   phone ring, mission jingle (pure WebAudio, no files)
 

@@ -222,7 +222,21 @@ frames(400);                            // settle, cleanup, respawn manager
 if (!DBG.phones.length) throw new Error('no phone booths spawned');
 console.log('phones:', DBG.phones.length, '| wallet: $' + DBG.wallet.money, '·', DBG.wallet.missions, 'missions done');
 
-// 7a. answer a ringing phone → first job is a delivery
+// 7a. proximity: walking up to an idle booth makes it ring, then E answers it
+DBG.ringPhoneAt(null);                          // silence everything first
+DBG.player.pos.x = DBG.phones[3].x + 6;         // inside the 20-unit approach trigger
+DBG.player.pos.z = DBG.phones[3].z;
+frames(3);
+if (!DBG.phones[3].ringing) throw new Error('walking up to a booth did not make it ring');
+DBG.player.pos.x = DBG.phones[3].x + 1.5;
+DBG.player.pos.z = DBG.phones[3].z;
+down('KeyE'); frames(2); up('KeyE');
+if (!DBG.mission.active) throw new Error('proximity-ringing phone could not be answered');
+DBG.mission.tLeft = 0.05; frames(5);            // cancel it — 7b tests the scripted flow
+if (DBG.mission.active) throw new Error('could not cancel proximity mission');
+console.log('proximity ringing OK — booths ring as you approach');
+
+// 7b. answer a ringing phone → first job is a delivery
 DBG.ringPhoneAt(DBG.phones[0]);
 DBG.player.pos.x = DBG.phones[0].x + 1.5;
 DBG.player.pos.z = DBG.phones[0].z;
