@@ -1,0 +1,238 @@
+// Headless smoke test: stubs DOM/WebGL/time, runs the real game logic for
+// ~3400 deterministic 60fps frames with scripted input, then asserts sanity.
+'use strict';
+global.THREE = require('./three.min.js');
+const THREE = global.THREE;
+
+// --- stub the WebGL renderer (real three.js does all the math) ---
+THREE.WebGLRenderer = function () {
+  this.shadowMap = {};
+  this.capabilities = { getMaxAnisotropy: () => 4 };
+  this.setPixelRatio = () => {};
+  this.setSize = () => {};
+  this.domElement = {};
+  this.render = () => {};
+};
+
+const ctxStub = new Proxy({}, {
+  get: (t, p) => (typeof p === 'string' ? (() => {}) : undefined),
+  set: () => true,
+});
+const makeEl = () => ({
+  style: {},
+  className: '',
+  classList: { add() {}, remove() {} },
+  textContent: '',
+  addEventListener() {},
+  appendChild() {},
+  getContext: () => ctxStub,
+  width: 172,
+  height: 172,
+});
+
+const winHandlers = {};
+global.window = {
+  addEventListener: (ev, fn) => { (winHandlers[ev] = winHandlers[ev] || []).push(fn); },
+  innerWidth: 1280,
+  innerHeight: 800,
+  devicePixelRatio: 1,
+  // no AudioContext on purpose: exercises the SFX guards
+};
+global.document = {
+  createElement: () => ({ width: 0, height: 0, getContext: () => ctxStub, style: {} }),
+  body: { appendChild() {} },
+  getElementById: () => makeEl(),
+  addEventListener() {},
+};
+
+// deterministic clock: the game reads performance.now()
+let simTime = 0;
+Object.defineProperty(globalThis, 'performance', {
+  value: { now: () => simTime }, configurable: true, writable: true,
+});
+
+let rafCb = null;
+global.requestAnimationFrame = (cb) => { rafCb = cb; return 1; };
+global.setTimeout = () => 0; // silence toasts
+
+// --- load the game (builds the whole city + spawns everything) ---
+require('./game.js');
+const DBG = global.window.__DBG;
+if (!DBG) throw new Error('debug hook missing');
+
+function fireKey(code, type) {
+  (winHandlers[type] || []).forEach(fn => fn({ code, repeat: false, preventDefault() {} }));
+}
+const down = c => fireKey(c, 'keydown');
+const up = c => fireKey(c, 'keyup');
+
+function frames(n) {
+  for (let i = 0; i < n; i++) {
+    simTime += 16.7; // 60 fps
+    const cb = rafCb; rafCb = null;
+    cb(simTime);
+    if (rafCb === null) throw new Error('rAF chain broken');
+  }
+}
+const finite = v => Number.isFinite(v);
+const aiCars = () => DBG.cars.filter(c => c.mode === 'ai');
+
+// --- 1. traffic sanity BEFORE the player does anything ---
+const pedPos0 = DBG.peds.map(p => p.pos.x + p.pos.z);
+const aiPos0 = aiCars().map(c => c.pos.x + c.pos.z);
+frames(300); // ~5s of pure city life
+const pedsMoved = DBG.peds.filter((p, i) => Math.abs(p.pos.x + p.pos.z - pedPos0[i]) > 0.5).length;
+const aiMoved = aiCars().filter((c, i) => Math.abs(c.pos.x + c.pos.z - aiPos0[i]) > 3).length;
+console.log(`city life: ${aiMoved}/${aiCars().length} AI cars driving, ${pedsMoved}/${DBG.peds.length} peds walking`);
+if (aiMoved < aiCars().length * 0.6) throw new Error('AI traffic is not driving');
+if (pedsMoved < DBG.peds.length * 0.5) throw new Error('pedestrians are not walking');
+
+// --- 2. player script ---
+down('KeyW');  frames(120);       // start game, walk north
+up('KeyW');
+down('KeyS');  frames(120);       // walk south past the parked Stallion
+up('KeyS');
+down('KeyE');  frames(2);  up('KeyE');   // enter the car
+if (DBG.player.state !== 'drive') throw new Error('failed to enter car');
+console.log('entered car:', DBG.player.car.type.name);
+
+down('KeyW');  frames(240);       // accelerate (wrong-way into traffic!)
+down('KeyA');  frames(80);  up('KeyA');  // turn left (through the spawn park)
+down('KeyD');  frames(160); up('KeyD');  // turn right
+down('Space'); frames(90);  up('Space'); // handbrake drift
+up('KeyW');
+down('KeyS');  frames(60);  up('KeyS');  // brake/reverse
+down('KeyE');  frames(2);  up('KeyE');   // exit
+if (DBG.player.state !== 'foot') throw new Error('failed to exit car');
+console.log('exited car, player at', DBG.player.pos.x.toFixed(1), DBG.player.pos.z.toFixed(1));
+
+down('KeyW'); down('ShiftLeft'); frames(200);  // sprint around
+up('ShiftLeft'); up('KeyW');
+down('KeyH'); up('KeyH');                 // horn
+down('KeyM'); up('KeyM');                 // mute
+down('KeyP'); up('KeyP'); frames(30);     // pause
+down('KeyP'); up('KeyP');                 // unpause
+
+// --- 3. deliberate ped hit: get back in a car, line up behind a pedestrian ---
+let nc = null, nd = 1e9;
+for (const c of DBG.cars) {
+  const d = Math.hypot(c.pos.x - DBG.player.pos.x, c.pos.z - DBG.player.pos.z);
+  if (d < nd) { nd = d; nc = c; }
+}
+DBG.player.pos.x = nc.pos.x + 2.5;
+DBG.player.pos.z = nc.pos.z;
+down('KeyE'); frames(2); up('KeyE');      // re-enter nearest car
+if (DBG.player.state !== 'drive') throw new Error('failed to re-enter car');
+console.log('re-entered:', DBG.player.car.type.name, '(' + DBG.player.car.mode + ')');
+const car = DBG.player.car;
+const victim = DBG.peds.find(p => p.state !== 'down');
+// stage on a clear stretch of the spawn road (z=270), ped facing the traffic
+victim.pos.x = 300; victim.pos.z = 270;
+victim.corners = null;                    // stand still for the setup
+victim.state = 'walk';
+car.pos.x = 293; car.pos.z = 270;
+car.h = -Math.PI / 2;                     // face east: forward = (+1, 0)
+car.vel.x = 14; car.vel.z = 0;            // already rolling — no escape
+down('KeyW'); frames(70); up('KeyW');
+console.log('run-over test: victim state =', victim.state);
+if (victim.state !== 'down') throw new Error('ped was not knocked down by car');
+
+// --- 4. rampage: weave through the city ---
+for (let phase = 0; phase < 10; phase++) {
+  down('KeyW');
+  if (phase % 3 === 0) down('KeyA'); else if (phase % 3 === 1) down('KeyD');
+  frames(140);
+  up('KeyA'); up('KeyD'); up('KeyW');
+}
+frames(600); // let respawn manager + AI settle
+
+// --- 5. wanted level & police chases ---
+function enterSomeCar() {
+  if (DBG.player.state === 'drive') return DBG.player.car;
+  let best = null, bd = 1e9;
+  for (const c of DBG.cars) {
+    if (c.disabled) continue;
+    const d = Math.hypot(c.pos.x - DBG.player.pos.x, c.pos.z - DBG.player.pos.z);
+    if (d < bd) { bd = d; best = c; }
+  }
+  DBG.player.pos.x = best.pos.x + 2.5;
+  DBG.player.pos.z = best.pos.z;
+  down('KeyE'); frames(2); up('KeyE');
+  if (DBG.player.state !== 'drive') throw new Error('could not enter a car');
+  return DBG.player.car;
+}
+const ride = enterSomeCar();
+ride.hp = 99999; ride.maxHp = 99999;   // keep the player alive through the chase
+const copsNow = () => DBG.cars.filter(c => c.mode === 'police' && !c.retired);
+
+DBG.addHeat(400);                       // → 3 stars (threshold 320)
+frames(30);
+if (DBG.wanted.stars < 3) throw new Error('wanted stars did not rise');
+frames(260);                            // cops spawn on a 1.6s cadence
+console.log('cops active at 3 stars:', copsNow().length);
+if (copsNow().length < 3) throw new Error('police did not spawn');
+
+const distToPlayer = c => Math.hypot(c.pos.x - DBG.player.pos.x, c.pos.z - DBG.player.pos.z);
+const d0 = Math.min(...copsNow().map(distToPlayer));
+frames(150);                            // ~2.5s of pursuit
+const d1 = Math.min(...copsNow().map(distToPlayer));
+console.log('pursuit distance', d0.toFixed(1), '→', d1.toFixed(1));
+if (d1 > d0) throw new Error('police are not converging on the player');
+
+// heat clears → cops stand down
+DBG.wanted.heat = 0;
+frames(120);
+if (copsNow().length !== 0) throw new Error('police did not stand down at zero heat');
+
+// heat decays while evading (no cops in sight)
+DBG.wanted.noSpawn = true;
+for (const c of DBG.cars.filter(c => c.mode === 'police')) DBG.removeCar(c);
+DBG.wanted.heat = 300;
+DBG.wanted.lastCopSeen = -9999;
+frames(1500);                           // 25s > 6s grace + 300/22 decay
+console.log('heat after evasion:', DBG.wanted.heat.toFixed(1), 'stars:', DBG.wanted.stars);
+if (DBG.wanted.heat > 0) throw new Error('heat did not decay while evading');
+DBG.wanted.noSpawn = false;
+
+// --- 6. health, wasted, wreck ---
+DBG.damagePlayer(50);
+frames(300);                            // 5s of regen
+if (DBG.player.hp <= 50) throw new Error('health did not regenerate');
+DBG.addHeat(200);
+DBG.damagePlayer(999);
+frames(5);
+if (DBG.player.wastedT <= 0) throw new Error('WASTED was not triggered');
+frames(230);                            // 3.8s > 3.2s respawn timer
+if (DBG.player.state !== 'foot' || DBG.player.hp !== 100) throw new Error('respawn failed');
+if (DBG.wanted.heat !== 0) throw new Error('heat not cleared on respawn');
+console.log('wasted + respawn OK, heat cleared');
+
+frames(200);                            // burn off respawn invulnerability
+const wreckRide = enterSomeCar();
+DBG.wreck(wreckRide);
+frames(3);
+if (!wreckRide.disabled) throw new Error('car was not disabled by wreck');
+if (DBG.player.hp >= 100) throw new Error('player took no damage from wrecking their car');
+console.log('wreck test OK — player hp', DBG.player.hp.toFixed(0));
+down('KeyE'); frames(2); up('KeyE');
+if (DBG.player.state !== 'foot') throw new Error('could not exit the wreck');
+frames(400);                            // settle, cleanup, respawn manager
+
+// --- assertions ---
+for (const c of DBG.cars) {
+  if (!finite(c.pos.x) || !finite(c.pos.z) || !finite(c.h)) throw new Error('car NaN: ' + c.type.name);
+  if (!finite(c.vel.x) || !finite(c.vel.z)) throw new Error('car NaN velocity');
+}
+for (const p of DBG.peds) {
+  if (!finite(p.pos.x) || !finite(p.pos.z)) throw new Error('ped NaN position');
+}
+if (!finite(DBG.player.pos.x) || !finite(DBG.player.pos.z)) throw new Error('player NaN');
+
+const downed = DBG.peds.filter(p => p.state === 'down').length;
+const fleeing = DBG.peds.filter(p => p.state === 'flee').length;
+const avgAiSpeed = aiCars().reduce((s, c) => s + Math.hypot(c.vel.x, c.vel.z), 0) / aiCars().length;
+console.log(`cars=${DBG.cars.length} (ai=${aiCars().length}) avgAiSpeed=${avgAiSpeed.toFixed(1)} | peds=${DBG.peds.length} downed=${downed} fleeing=${fleeing}`);
+console.log(`sim time ${(simTime / 1000).toFixed(1)}s, player state=${DBG.player.state}`);
+if (DBG.cars.length < 30) throw new Error('lost cars somehow');
+if (DBG.peds.length < 40) throw new Error('lost peds somehow');
+console.log('SMOKE TEST PASSED');
