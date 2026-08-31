@@ -27,6 +27,14 @@
   .star.on{color:#ffd23f;text-shadow:0 0 12px rgba(255,180,40,.75),0 2px 0 rgba(0,0,0,.85)}
   .star.pop{animation:starpop .35s ease}
   @keyframes starpop{0%{transform:scale(1)}40%{transform:scale(1.55)}100%{transform:scale(1)}}
+  #money{font-family:Impact,'Arial Black',sans-serif;font-size:22px;color:#7ade7a;letter-spacing:1px;text-shadow:0 2px 0 rgba(0,0,0,.85),0 0 14px rgba(90,200,90,.3);margin-top:6px}
+  #money.pop{animation:moneypop .4s ease}
+  @keyframes moneypop{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}
+  #mcount{font-size:10px;font-weight:700;color:#9aa5b1;letter-spacing:2px;margin-top:2px;text-shadow:0 2px 0 rgba(0,0,0,.8)}
+  #missionbar{top:14px;left:50%;transform:translateX(-50%);display:none;background:rgba(8,10,14,.68);border-radius:4px;border-bottom:3px solid #ffd23f;padding:8px 18px;text-align:center;min-width:260px}
+  #mtitle{color:#fff;font-weight:700;font-size:12px;letter-spacing:2px;text-shadow:0 2px 0 rgba(0,0,0,.8)}
+  #mtimer{font-family:Impact,'Arial Black',sans-serif;font-size:26px;color:#ffd23f;letter-spacing:3px;line-height:1.1;text-shadow:0 2px 0 rgba(0,0,0,.85)}
+  #mtimer.low{color:#ff5a3c;animation:blink .5s infinite}
   .bar{width:132px;height:9px;background:rgba(8,10,14,.66);border:1px solid rgba(255,255,255,.28);border-radius:5px;margin:7px 0 0 auto;overflow:hidden}
   #hpfill{height:100%;width:100%;background:#57c15a;border-radius:4px}
   #carbarwrap{display:none}
@@ -49,10 +57,10 @@
 <div id="controls" class="ov">
   <div><span class="k">W A S D</span> <b>move / drive</b></div>
   <div><span class="k">SHIFT</span> <b>sprint</b></div>
-  <div><span class="k">E</span> <b>enter / exit car</b></div>
+  <div><span class="k">E</span> <b>enter / exit car · answer phones</b></div>
   <div><span class="k">SPACE</span> <b>handbrake</b></div>
   <div><span class="k">H</span> <b>horn</b> &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; <b>P</b> pause</div>
-  <div style="margin-top:4px;color:#8b939e">crime brings ★ — outrun the heat</div>
+  <div style="margin-top:4px;color:#8b939e">steal a ride · answer the phone · outrun the heat</div>
 </div>
 <div id="hint" class="ov"></div>
 <div id="toast" class="ov"></div>
@@ -64,6 +72,12 @@
   </div>
   <div class="bar"><div id="hpfill"></div></div>
   <div class="bar" id="carbarwrap"><div id="carfill"></div></div>
+  <div id="money">$0</div>
+  <div id="mcount">MISSIONS · 0</div>
+</div>
+<div id="missionbar" class="ov">
+  <div id="mtitle"></div>
+  <div id="mtimer">0:00</div>
 </div>
 <canvas id="minimap" width="172" height="172"></canvas>
 <div id="wasted">WASTED</div>
@@ -71,7 +85,7 @@
   <h1>SUNSET CITY</h1>
   <div class="sub">A TOP-DOWN JOYRIDE</div>
   <div class="press">PRESS ANY KEY</div>
-  <div class="foot">steal a ride · dodge the traffic · three.js</div>
+  <div class="foot">steal a ride · answer the phone · outrun the heat</div>
 </div>
 <script>window.onerror=function(m){var e=document.getElementById('errbox');e.style.display='block';e.textContent+='Error: '+m+'\n';};</script>
 <script>/*__THREE__*/</script>

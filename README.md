@@ -13,7 +13,7 @@ hosted build on GitHub Pages once enabled.
 |---|---|
 | W A S D / arrows | walk / drive |
 | Shift | sprint |
-| E | enter / exit (steal) any car |
+| E | enter / exit (steal) any car · answer pay phones |
 | Space | handbrake (drift) |
 | H | horn (scares pedestrians) |
 | M | mute |
@@ -33,18 +33,24 @@ hosted build on GitHub Pages once enabled.
   pursuit AI that gets faster at higher heat; evade to cool down
 - **Minimap + health/damage** — circular radar with cop blips, player health,
   per-car damage; cars get totalled, players get WASTED and respawn
-- **Procedural audio** — engine, tire skid, horn, crashes, police siren
-  (pure WebAudio, no files)
+- **Missions & money** — 7 pay phones around the city ring at random; walk up
+  and press **E** to take a job. Three kinds: timed **deliveries** (get the
+  package to the gold beacon), **car boosts** (steal the marked gold Stallion
+  and deliver it), and **hot goods** (a drop that trips the alarm — instant
+  wanted stars). Finish before the timer for a cash time bonus; cash and
+  completed-mission count persist via `localStorage`
+- **Procedural audio** — engine, tire skid, horn, crashes, police siren,
+  phone ring, mission jingle (pure WebAudio, no files)
 
 ## Project structure
 
 ```
 index.html              ← the playable game (single file)
-src/game.js             ← all game source (~1,300 lines, sectioned)
+src/game.js             ← all game source (~1,950 lines, sectioned)
 src/index.template.html ← HTML shell + HUD markup/CSS
 src/three.min.js        ← vendored three.js r128
 src/build.py            ← bundles the above into index.html
-src/test-harness.js     ← headless test: stubs DOM/WebGL, simulates ~110s
+src/test-harness.js     ← headless test: stubs DOM/WebGL, simulates ~125s
                            of gameplay with scripted input, asserts sanity
 ```
 

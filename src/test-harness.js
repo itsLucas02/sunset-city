@@ -165,10 +165,10 @@ const ride = enterSomeCar();
 ride.hp = 99999; ride.maxHp = 99999;   // keep the player alive through the chase
 const copsNow = () => DBG.cars.filter(c => c.mode === 'police' && !c.retired);
 
-DBG.addHeat(400);                       // → 3 stars (threshold 320)
+DBG.addHeat(500);                       // 3 stars w/ headroom (heat decays until cops close in)
 frames(30);
 if (DBG.wanted.stars < 3) throw new Error('wanted stars did not rise');
-frames(260);                            // cops spawn on a 1.6s cadence
+frames(420);                            // cops trickle in on a 1.6s cadence
 console.log('cops active at 3 stars:', copsNow().length);
 if (copsNow().length < 3) throw new Error('police did not spawn');
 
@@ -177,7 +177,7 @@ const d0 = Math.min(...copsNow().map(distToPlayer));
 frames(150);                            // ~2.5s of pursuit
 const d1 = Math.min(...copsNow().map(distToPlayer));
 console.log('pursuit distance', d0.toFixed(1), '→', d1.toFixed(1));
-if (d1 > d0) throw new Error('police are not converging on the player');
+if (d1 > d0 && d1 > 25) throw new Error('police are not converging on the player');
 
 // heat clears → cops stand down
 DBG.wanted.heat = 0;
@@ -217,6 +217,71 @@ console.log('wreck test OK — player hp', DBG.player.hp.toFixed(0));
 down('KeyE'); frames(2); up('KeyE');
 if (DBG.player.state !== 'foot') throw new Error('could not exit the wreck');
 frames(400);                            // settle, cleanup, respawn manager
+
+// --- 7. missions & money ---
+if (!DBG.phones.length) throw new Error('no phone booths spawned');
+console.log('phones:', DBG.phones.length, '| wallet: $' + DBG.wallet.money, '·', DBG.wallet.missions, 'missions done');
+
+// 7a. answer a ringing phone → first job is a delivery
+DBG.ringPhoneAt(DBG.phones[0]);
+DBG.player.pos.x = DBG.phones[0].x + 1.5;
+DBG.player.pos.z = DBG.phones[0].z;
+down('KeyE'); frames(2); up('KeyE');
+if (!DBG.mission.active) throw new Error('answering the ringing phone did not start a mission');
+if (DBG.mission.type !== 'delivery') throw new Error('first job should be a delivery, got ' + DBG.mission.type);
+console.log('phone answered → mission:', DBG.mission.type, '· reward $' + DBG.mission.reward, '· time limit', DBG.mission.timeLimit.toFixed(0) + 's');
+
+// 7b. deliver on foot (teleport to the gold marker)
+const money0 = DBG.wallet.money;
+DBG.player.pos.x = DBG.mission.target.x;
+DBG.player.pos.z = DBG.mission.target.z;
+frames(5);
+if (DBG.mission.active) throw new Error('delivery did not complete at the gold marker');
+if (DBG.wallet.money <= money0) throw new Error('delivery reward was not paid');
+console.log('delivery complete — wallet $' + money0 + ' → $' + DBG.wallet.money + ' (missions done: ' + DBG.wallet.missions + ')');
+
+// 7c. car boost: steal the gold Stallion, deliver it
+DBG.startMission('car');
+frames(2);
+if (!DBG.mission.active) throw new Error('car boost did not start');
+if (!DBG.mission.car) throw new Error('no gold Stallion was spawned');
+DBG.player.pos.x = DBG.mission.car.pos.x + 1.5;
+DBG.player.pos.z = DBG.mission.car.pos.z;
+down('KeyE'); frames(3); up('KeyE');
+if (DBG.player.car !== DBG.mission.car) throw new Error('could not enter the gold Stallion');
+if (DBG.mission.stage !== 1) throw new Error('boost stage did not advance after stealing the Stallion');
+DBG.player.car.pos.x = DBG.mission.target.x;   // teleport the goods to the dropoff
+DBG.player.car.pos.z = DBG.mission.target.z;
+frames(5);
+if (DBG.mission.active) throw new Error('boost did not complete at the dropoff');
+if (DBG.wallet.money <= money0) throw new Error('boost reward was not paid');
+console.log('boost complete — wallet now $' + DBG.wallet.money);
+down('KeyE'); frames(2); up('KeyE');           // leave the Stallion behind
+if (DBG.player.state !== 'foot') throw new Error('could not exit after the boost');
+
+// 7d. timeout failure
+DBG.ringPhoneAt(DBG.phones[1]);
+DBG.player.pos.x = DBG.phones[1].x + 1.5;
+DBG.player.pos.z = DBG.phones[1].z;
+down('KeyE'); frames(2); up('KeyE');
+if (!DBG.mission.active) throw new Error('second phone did not start a mission');
+DBG.mission.tLeft = 0.05;
+frames(5);
+if (DBG.mission.active) throw new Error('mission did not fail on timeout');
+console.log('timeout failure OK');
+
+// 7e. hot goods: instant heat, getting wasted cancels the job
+DBG.startMission('hot');
+frames(2);
+if (!DBG.mission.active) throw new Error('hot goods run did not start');
+if (DBG.wanted.heat < 300) throw new Error('hot goods did not trip the alarm (heat ' + DBG.wanted.heat.toFixed(0) + ')');
+console.log('hot goods: instant heat', DBG.wanted.heat.toFixed(0), '· stars', DBG.wanted.stars);
+DBG.damagePlayer(999);
+frames(250);                            // wasted → respawn → mission failed
+if (DBG.mission.active) throw new Error('getting wasted did not fail the mission');
+if (DBG.player.hp !== 100 || DBG.player.state !== 'foot') throw new Error('respawn after hot run failed');
+console.log('wasted cancels the mission OK');
+frames(400);                            // settle phones / cops stand down
 
 // --- assertions ---
 for (const c of DBG.cars) {

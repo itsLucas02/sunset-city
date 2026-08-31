@@ -27,6 +27,14 @@
   .star.on{color:#ffd23f;text-shadow:0 0 12px rgba(255,180,40,.75),0 2px 0 rgba(0,0,0,.85)}
   .star.pop{animation:starpop .35s ease}
   @keyframes starpop{0%{transform:scale(1)}40%{transform:scale(1.55)}100%{transform:scale(1)}}
+  #money{font-family:Impact,'Arial Black',sans-serif;font-size:22px;color:#7ade7a;letter-spacing:1px;text-shadow:0 2px 0 rgba(0,0,0,.85),0 0 14px rgba(90,200,90,.3);margin-top:6px}
+  #money.pop{animation:moneypop .4s ease}
+  @keyframes moneypop{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}
+  #mcount{font-size:10px;font-weight:700;color:#9aa5b1;letter-spacing:2px;margin-top:2px;text-shadow:0 2px 0 rgba(0,0,0,.8)}
+  #missionbar{top:14px;left:50%;transform:translateX(-50%);display:none;background:rgba(8,10,14,.68);border-radius:4px;border-bottom:3px solid #ffd23f;padding:8px 18px;text-align:center;min-width:260px}
+  #mtitle{color:#fff;font-weight:700;font-size:12px;letter-spacing:2px;text-shadow:0 2px 0 rgba(0,0,0,.8)}
+  #mtimer{font-family:Impact,'Arial Black',sans-serif;font-size:26px;color:#ffd23f;letter-spacing:3px;line-height:1.1;text-shadow:0 2px 0 rgba(0,0,0,.85)}
+  #mtimer.low{color:#ff5a3c;animation:blink .5s infinite}
   .bar{width:132px;height:9px;background:rgba(8,10,14,.66);border:1px solid rgba(255,255,255,.28);border-radius:5px;margin:7px 0 0 auto;overflow:hidden}
   #hpfill{height:100%;width:100%;background:#57c15a;border-radius:4px}
   #carbarwrap{display:none}
@@ -49,10 +57,10 @@
 <div id="controls" class="ov">
   <div><span class="k">W A S D</span> <b>move / drive</b></div>
   <div><span class="k">SHIFT</span> <b>sprint</b></div>
-  <div><span class="k">E</span> <b>enter / exit car</b></div>
+  <div><span class="k">E</span> <b>enter / exit car · answer phones</b></div>
   <div><span class="k">SPACE</span> <b>handbrake</b></div>
   <div><span class="k">H</span> <b>horn</b> &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; <b>P</b> pause</div>
-  <div style="margin-top:4px;color:#8b939e">crime brings ★ — outrun the heat</div>
+  <div style="margin-top:4px;color:#8b939e">steal a ride · answer the phone · outrun the heat</div>
 </div>
 <div id="hint" class="ov"></div>
 <div id="toast" class="ov"></div>
@@ -64,6 +72,12 @@
   </div>
   <div class="bar"><div id="hpfill"></div></div>
   <div class="bar" id="carbarwrap"><div id="carfill"></div></div>
+  <div id="money">$0</div>
+  <div id="mcount">MISSIONS · 0</div>
+</div>
+<div id="missionbar" class="ov">
+  <div id="mtitle"></div>
+  <div id="mtimer">0:00</div>
 </div>
 <canvas id="minimap" width="172" height="172"></canvas>
 <div id="wasted">WASTED</div>
@@ -71,7 +85,7 @@
   <h1>SUNSET CITY</h1>
   <div class="sub">A TOP-DOWN JOYRIDE</div>
   <div class="press">PRESS ANY KEY</div>
-  <div class="foot">steal a ride · dodge the traffic · three.js</div>
+  <div class="foot">steal a ride · answer the phone · outrun the heat</div>
 </div>
 <script>window.onerror=function(m){var e=document.getElementById('errbox');e.style.display='block';e.textContent+='Error: '+m+'\n';};</script>
 <script>/**
@@ -1034,8 +1048,9 @@ function updatePlayer(dt){
   if(pressedE){
     pressedE=false;
     if(started&&!paused){
-      if(player.state==='foot')tryEnterCar();
-      else tryExitCar();
+      if(player.state==='foot'){
+        if(!tryAnswerPhone())tryEnterCar();
+      }else tryExitCar();
     }
   }
   if(player.state==='drive'){
@@ -1116,6 +1131,7 @@ function damagePlayer(x){
   }
 }
 function respawnPlayer(){
+  failMission('YOU GOT WASTED');
   if(player.car){player.car.mode='parked';player.car=null;}
   player.state='foot';
   player.pos.x=243;player.pos.z=259.3;player.h=0;
@@ -1315,6 +1331,273 @@ function pedCarInteractions(){
   }
 }
 
+// ----------------------------- 10.5 missions & money -------------------------
+const wallet={money:0,missions:0};
+function loadWallet(){
+  try{
+    const m=parseInt(window.localStorage.getItem('sc_money'),10);
+    if(!isNaN(m)&&m>=0)wallet.money=m;
+    const n=parseInt(window.localStorage.getItem('sc_missions'),10);
+    if(!isNaN(n)&&n>=0)wallet.missions=n;
+  }catch(e){}
+}
+function saveWallet(){
+  try{
+    window.localStorage.setItem('sc_money',String(wallet.money));
+    window.localStorage.setItem('sc_missions',String(wallet.missions));
+  }catch(e){}
+}
+
+// ---- phone booths ----
+const phones=[];
+function spawnPhones(){
+  const spots=[];
+  spots.push({x:4*P+RH+BLOCK-3.2,z:4*P+RH+BLOCK-3.2});   // spawn park corner
+  let guard=0;
+  while(spots.length<7&&guard<500){
+    guard++;
+    const i=ri(0,N-1),j=ri(0,N-1);
+    const x=i*P+RH+rr(6,BLOCK-6);
+    const z=j*P+RH+1.9;                                   // north sidewalk
+    let ok=true;
+    for(let s=0;s<spots.length;s++)if(dist2(x,z,spots[s].x,spots[s].z)<110){ok=false;break;}
+    if(!ok)continue;
+    spots.push({x:x,z:z});
+  }
+  for(let s=0;s<spots.length;s++){
+    const sp=spots[s];
+    const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.15,2.9,1.15),matOf(0x24466b));
+    body.position.y=1.6;body.castShadow=true;g.add(body);
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(1.32,0.18,1.32),matOf(0x2c5d94));
+    cap.position.y=3.1;g.add(cap);
+    const screenMat=new THREE.MeshLambertMaterial({color:0x0c2229,emissive:0x0a3a44});
+    const screen=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.75,0.08),screenMat);
+    screen.position.set(0,2.15,-0.62);g.add(screen);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(1.0,1.35,24),
+      new THREE.MeshBasicMaterial({color:0x54e0e8,transparent:true,opacity:0.8,side:THREE.DoubleSide,depthWrite:false}));
+    ring.rotation.x=-Math.PI/2;ring.position.y=3.7;ring.visible=false;g.add(ring);
+    g.position.set(sp.x,0.16,sp.z);
+    scene.add(g);
+    registerCircle(sp.x,sp.z,0.75);
+    phones.push({x:sp.x,z:sp.z,g:g,ring:ring,screenMat:screenMat,ringing:false,ringT:0});
+  }
+}
+
+// ---- mission markers ----
+function makeMarker(){
+  const g=new THREE.Group();
+  const ring=new THREE.Mesh(new THREE.RingGeometry(2.6,3.4,32),
+    new THREE.MeshBasicMaterial({color:0xffd23f,transparent:true,opacity:0.9,side:THREE.DoubleSide,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=0.25;g.add(ring);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.7,52,12,1,true),
+    new THREE.MeshBasicMaterial({color:0xffd23f,transparent:true,opacity:0.15,side:THREE.DoubleSide,depthWrite:false}));
+  beam.position.y=26;g.add(beam);
+  scene.add(g);
+  return {g:g,ring:ring,beam:beam};
+}
+
+// ---- mission manager ----
+const mission={active:false,phase:'idle',type:null,title:'',tLeft:0,timeLimit:0,reward:0,
+              target:null,marker:null,car:null,stage:0,blip:null};
+let phoneCd=4,lastRingSnd=0;
+
+function pickRoadPoint(minD,maxD,fx,fz){
+  if(fx===undefined)fx=focusX();
+  if(fz===undefined)fz=focusZ();
+  for(let t=0;t<50;t++){
+    const i=ri(0,N),j=ri(0,N);
+    const d=pick(DIRS4);
+    const ni=i+d[0],nj=j+d[1];
+    if(ni<0||ni>N||nj<0||nj>N)continue;
+    const tt=rr(0.2,0.8);
+    const px=(i+d[0]*tt)*P,pz=(j+d[1]*tt)*P;
+    const dd=dist2(px,pz,fx,fz);
+    if(dd<minD||dd>maxD)continue;
+    const r=rightOf(d[0],d[1]);
+    return {x:px+r.x*LANE,z:pz+r.z*LANE,h:headingTo(d[0],d[1]),dx:d[0],dz:d[1]};
+  }
+  return null;
+}
+function pickParkedPoint(minD,maxD,fx,fz){
+  const p=pickRoadPoint(minD,maxD,fx,fz);
+  if(!p)return null;
+  const r=rightOf(p.dx,p.dz);
+  return {x:p.x+r.x*3.7,z:p.z+r.z*3.7,h:p.h};
+}
+function pickMissionType(){
+  const done=wallet.missions;
+  if(done<=0)return 'delivery';
+  if(done===1)return RNG()<0.55?'delivery':'car';
+  const r=RNG();
+  return r<0.34?'delivery':(r<0.67?'car':'hot');
+}
+function ringPhoneAt(ph){
+  for(let k=0;k<phones.length;k++){
+    phones[k].ringing=false;phones[k].ring.visible=false;phones[k].ringT=0;
+  }
+  if(ph){ph.ringing=true;ph.ringT=0;}
+}
+function nearRingingPhone(r){
+  for(let k=0;k<phones.length;k++){
+    const ph=phones[k];
+    if(ph.ringing&&dist2(player.pos.x,player.pos.z,ph.x,ph.z)<r)return ph;
+  }
+  return null;
+}
+function chooseRingingPhone(){
+  const fx=focusX(),fz=focusZ();
+  const cands=[];
+  for(let k=0;k<phones.length;k++){
+    const d=dist2(phones[k].x,phones[k].z,fx,fz);
+    if(d>40&&d<240)cands.push(phones[k]);
+  }
+  if(!cands.length){phoneCd=3;return;}
+  ringPhoneAt(pick(cands));
+}
+function tryAnswerPhone(){
+  const ph=nearRingingPhone(2.8);
+  if(!ph)return false;
+  ph.ringing=false;ph.ring.visible=false;
+  startMission(pickMissionType());
+  return true;
+}
+function startMission(type){
+  cleanupMission();
+  const fx=focusX(),fz=focusZ();
+  if(type==='car'){
+    const pa=pickParkedPoint(90,180,fx,fz);
+    let ok=!!pa;
+    if(ok){
+      mission.car=new Car(4,0xd4af37,pa.x,pa.z,pa.h,'parked');
+      const pb=pickRoadPoint(120,220,pa.x,pa.z);
+      if(pb)mission.target={x:pb.x,z:pb.z};
+      else{removeCar(mission.car);mission.car=null;ok=false;}
+    }
+    if(!ok)type='delivery';
+  }
+  if(type==='delivery'||type==='hot'){
+    const p=pickRoadPoint(110,240,fx,fz);
+    if(!p){toast('NO JOBS RIGHT NOW — CHECK BACK');return;}
+    mission.target={x:p.x,z:p.z};
+  }
+  mission.type=type;mission.active=true;mission.phase='run';mission.stage=0;
+  mission.marker=makeMarker();
+  const tgt=(type==='car')?mission.car.pos:mission.target;
+  mission.marker.g.position.set(tgt.x,0,tgt.z);
+  mission.blip={x:tgt.x,z:tgt.z};
+  const manh=Math.abs(tgt.x-fx)+Math.abs(tgt.z-fz);
+  if(type==='delivery'||type==='hot'){
+    mission.timeLimit=manh/10.5+18;
+    mission.reward=180+Math.round(manh*1.1);
+    if(type==='hot'){
+      mission.reward+=350;
+      mission.title='HOT GOODS — SHAKE THE COPS, MAKE THE DROP';
+      addHeat(340);
+      toast('THE ALARM TIPPED OFF THE COPS — DELIVER ANYWAY',3800);
+    }else{
+      mission.title='DELIVERY — MAKE THE DROP';
+      toast('PACKAGE IN HAND — GET IT TO THE GOLD MARKER',3800);
+    }
+  }else{
+    const manh2=Math.abs(mission.target.x-mission.car.pos.x)+Math.abs(mission.target.z-mission.car.pos.z);
+    mission.timeLimit=manh/12+manh2/12+30;
+    mission.reward=320+Math.round((manh+manh2)*0.9);
+    mission.title='BOOST — STEAL THE GOLD STALLION';
+    toast('A GOLD STALLION IS MARKED — BRING IT IN',3800);
+  }
+  mission.tLeft=mission.timeLimit;
+  SFX.blip();
+}
+function completeMission(){
+  const bonus=Math.round(Math.max(0,mission.tLeft)*4);
+  const total=mission.reward+bonus;
+  wallet.money+=total;wallet.missions++;
+  saveWallet();
+  if(mission.type==='hot')wanted.heat*=0.4;
+  toast('MISSION COMPLETE — +$'+total+' (TIME BONUS $'+bonus+')',3600);
+  SFX.jingle();
+  cleanupMission();
+  phoneCd=9;
+}
+function failMission(reason){
+  if(!mission.active)return;
+  toast('MISSION FAILED — '+reason);
+  SFX.buzz();
+  cleanupMission();
+  phoneCd=12;
+}
+function cleanupMission(){
+  if(mission.marker){
+    scene.remove(mission.marker.g);
+    mission.marker.ring.geometry.dispose();mission.marker.ring.material.dispose();
+    mission.marker.beam.geometry.dispose();mission.marker.beam.material.dispose();
+    mission.marker=null;
+  }
+  if(mission.car&&mission.car!==player.car)removeCar(mission.car);
+  mission.car=null;mission.active=false;mission.phase='idle';
+  mission.target=null;mission.blip=null;
+}
+function missionTick(dt){
+  if(!mission.active){
+    let anyRing=false;
+    for(let k=0;k<phones.length;k++)if(phones[k].ringing)anyRing=true;
+    if(!anyRing){
+      phoneCd-=dt;
+      if(phoneCd<=0)chooseRingingPhone();
+    }
+    for(let k=0;k<phones.length;k++){
+      const ph=phones[k];
+      if(!ph.ringing)continue;
+      ph.ringT+=dt;
+      ph.ring.visible=true;
+      ph.ring.scale.setScalar(0.9+0.25*Math.sin(simNow*7));
+      ph.ring.material.opacity=0.45+0.4*Math.sin(simNow*7);
+      ph.screenMat.emissive.setHex(Math.floor(simNow*5)%2===0?0x37e0e8:0x0a3a44);
+      if(simNow-lastRingSnd>2.2){
+        lastRingSnd=simNow;
+        const d=dist2(ph.x,ph.z,focusX(),focusZ());
+        SFX.ring(Math.max(0,0.07*(1-d/260)));
+      }
+      if(ph.ringT>40){ph.ringing=false;ph.ring.visible=false;phoneCd=4;}
+    }
+    return;
+  }
+  if(mission.phase!=='run')return;
+  mission.tLeft-=dt;
+  if(mission.tLeft<=0){failMission('OUT OF TIME');return;}
+  const m=mission.marker;
+  if(m){
+    m.ring.scale.setScalar(1+0.12*Math.sin(simNow*5));
+    m.ring.material.opacity=0.6+0.3*Math.sin(simNow*5);
+    m.beam.rotation.y+=dt*0.6;
+  }
+  if(mission.type==='car'){
+    if(!mission.car||mission.car.disabled){failMission('THE STALLION IS TOTALLED');return;}
+    if(mission.stage===0){
+      if(m&&mission.car)m.g.position.set(mission.car.pos.x,0,mission.car.pos.z);
+      if(player.car===mission.car){
+        mission.stage=1;
+        if(m)m.g.position.set(mission.target.x,0,mission.target.z);
+        toast('GOOD — NOW DELIVER IT');
+        SFX.blip();
+      }
+    }
+    mission.blip=mission.stage===0
+      ?{x:mission.car.pos.x,z:mission.car.pos.z}
+      :{x:mission.target.x,z:mission.target.z};
+  }else{
+    mission.blip={x:mission.target.x,z:mission.target.z};
+  }
+  const fx=focusX(),fz=focusZ();
+  if(mission.type==='car'){
+    if(mission.stage===1&&player.car===mission.car&&
+       dist2(fx,fz,mission.target.x,mission.target.z)<5.5)completeMission();
+  }else{
+    if(dist2(fx,fz,mission.target.x,mission.target.z)<4.5)completeMission();
+  }
+}
+
 // ----------------------------- 11. audio -------------------------------------
 const SFX={
   ctx:null,master:null,engOsc1:null,engOsc2:null,engFilter:null,engGain:null,
@@ -1396,6 +1679,56 @@ const SFX={
     o1.connect(g);o2.connect(g);g.connect(this.master);
     o1.start(t);o2.start(t);o1.stop(t+0.35);o2.stop(t+0.35);
   },
+  ring(vol){
+    if(!this.ctx||this.muted||vol<=0.004)return;
+    const t=this.ctx.currentTime;
+    for(let k=0;k<2;k++){
+      const o=this.ctx.createOscillator();o.type='sine';o.frequency.value=k===0?1180:940;
+      const g=this.ctx.createGain();
+      const st=t+k*0.19;
+      g.gain.setValueAtTime(0,st);
+      g.gain.linearRampToValueAtTime(vol,st+0.015);
+      g.gain.exponentialRampToValueAtTime(0.001,st+0.13);
+      o.connect(g);g.connect(this.master);
+      o.start(st);o.stop(st+0.16);
+    }
+  },
+  jingle(){
+    if(!this.ctx||this.muted)return;
+    const t=this.ctx.currentTime;
+    const notes=[660,880,1180];
+    for(let k=0;k<notes.length;k++){
+      const o=this.ctx.createOscillator();o.type='triangle';o.frequency.value=notes[k];
+      const g=this.ctx.createGain();
+      const st=t+k*0.1;
+      g.gain.setValueAtTime(0.11,st);
+      g.gain.exponentialRampToValueAtTime(0.001,st+0.22);
+      o.connect(g);g.connect(this.master);
+      o.start(st);o.stop(st+0.25);
+    }
+  },
+  buzz(){
+    if(!this.ctx||this.muted)return;
+    const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator();o.type='sawtooth';
+    o.frequency.setValueAtTime(180,t);
+    o.frequency.exponentialRampToValueAtTime(70,t+0.35);
+    const g=this.ctx.createGain();
+    g.gain.setValueAtTime(0.09,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.38);
+    o.connect(g);g.connect(this.master);
+    o.start(t);o.stop(t+0.4);
+  },
+  blip(){
+    if(!this.ctx||this.muted)return;
+    const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator();o.type='square';o.frequency.value=980;
+    const g=this.ctx.createGain();
+    g.gain.setValueAtTime(0.07,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
+    o.connect(g);g.connect(this.master);
+    o.start(t);o.stop(t+0.1);
+  },
   toggle(){
     this.muted=!this.muted;
     if(this.master)this.master.gain.value=this.muted?0:0.5;
@@ -1422,12 +1755,17 @@ const carbarWrapEl=document.getElementById('carbarwrap');
 const carfillEl=document.getElementById('carfill');
 const mmC=document.getElementById('minimap');
 const mmCtx=(mmC&&mmC.getContext)?mmC.getContext('2d'):null;
+const missionbarEl=document.getElementById('missionbar');
+const mtitleEl=document.getElementById('mtitle');
+const mtimerEl=document.getElementById('mtimer');
+const moneyEl=document.getElementById('money');
+const mcountEl=document.getElementById('mcount');
 let toastTimer=0;
-function toast(msg){
+function toast(msg,dur){
   toastEl.textContent=msg;
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2600);
+  toastTimer=setTimeout(()=>toastEl.classList.remove('show'),dur||2600);
 }
 const keyState={f:0,b:0,l:0,r:0,run:0,hb:0};
 const KEYMAP={KeyW:'f',ArrowUp:'f',KeyS:'b',ArrowDown:'b',KeyA:'l',ArrowLeft:'l',KeyD:'r',ArrowRight:'r',ShiftLeft:'run',ShiftRight:'run',Space:'hb'};
@@ -1487,17 +1825,37 @@ function updateHUD(){
   }else{
     carbarWrapEl.style.display='none';
   }
-  // context hint
+  // money + missions
+  if(wallet.money!==lastMoneyShown){
+    lastMoneyShown=wallet.money;
+    moneyEl.textContent='$'+wallet.money.toLocaleString('en-US');
+    moneyEl.className='';void moneyEl.offsetWidth;moneyEl.className='pop';
+  }
+  mcountEl.textContent='MISSIONS · '+wallet.missions;
+  // mission bar
+  if(mission.active&&mission.phase==='run'){
+    missionbarEl.style.display='block';
+    mtitleEl.textContent=mission.title;
+    const s=Math.max(0,Math.ceil(mission.tLeft));
+    mtimerEl.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+    mtimerEl.className=mission.tLeft<10?'low':'';
+  }else{
+    missionbarEl.style.display='none';
+  }
+  // context hint (phone beats car)
   let msg='';
   if(started&&player.state==='foot'&&player.wastedT<=0){
-    const c=nearestEnterable(4.6);
-    if(c)msg='E — ENTER '+c.type.name;
+    if(nearRingingPhone(2.8))msg='E — ANSWER PHONE';
+    else{
+      const c=nearestEnterable(4.6);
+      if(c)msg='E — ENTER '+c.type.name;
+    }
   }
   if(msg){hintEl.textContent=msg;hintEl.style.display='block';}
   else hintEl.style.display='none';
   drawMinimap();
 }
-let prevStars=0;
+let prevStars=0,lastMoneyShown=-1;
 // ----------------------------- 12.5 minimap ----------------------------------
 function drawMinimap(){
   if(!mmCtx)return;
@@ -1540,6 +1898,18 @@ function drawMinimap(){
     if(c.mode!=='police'||c.retired)continue;
     g.fillStyle=(Math.floor(simNow*5)%2===0)?'#ff3b30':'#3b7bff';
     g.beginPath();g.arc(mx(c.pos.x),my(c.pos.z),3,0,Math.PI*2);g.fill();
+  }
+  // mission target (gold, pulsing) or ringing phone (cyan, pulsing)
+  if(mission.active&&mission.blip){
+    g.fillStyle=(Math.floor(simNow*4)%2===0)?'#ffd23f':'#c7952a';
+    g.beginPath();g.arc(mx(mission.blip.x),my(mission.blip.z),4.5,0,Math.PI*2);g.fill();
+  }else{
+    for(let k=0;k<phones.length;k++){
+      const ph=phones[k];
+      if(!ph.ringing)continue;
+      g.fillStyle=(Math.floor(simNow*4)%2===0)?'#54e0e8':'#2a8f96';
+      g.beginPath();g.arc(mx(ph.x),my(ph.z),3,0,Math.PI*2);g.fill();
+    }
   }
   // player arrow
   const ph=player.state==='drive'?player.car.h:player.h;
@@ -1621,6 +1991,7 @@ function update(dt){
   for(let k=0;k<peds.length;k++)peds[k].update(dt);
   pedCarInteractions();
   wantedTick(dt);
+  missionTick(dt);
   respawnTick(dt);
   for(let k=0;k<cars.length;k++)cars[k].syncMesh();
   for(let k=0;k<peds.length;k++)peds[k].syncMesh();
@@ -1630,6 +2001,8 @@ function update(dt){
 // ----------------------------- 16. boot --------------------------------------
 buildCity();
 spawnParked();
+loadWallet();
+spawnPhones();
 for(let i=0;i<24;i++){
   const c=spawnAICar();
   spawnAIOnEdgeNear(c,player.pos.x,player.pos.z,55,280);
@@ -1674,7 +2047,9 @@ tick();
 
 // debug/testing hook (harmless in production)
 window.__DBG={player:player,cars:cars,peds:peds,wanted:wanted,
-              addHeat:addHeat,damagePlayer:damagePlayer,wreck:wreckCar,removeCar:removeCar};
+              addHeat:addHeat,damagePlayer:damagePlayer,wreck:wreckCar,removeCar:removeCar,
+              mission:mission,phones:phones,wallet:wallet,
+              ringPhoneAt:ringPhoneAt,startMission:startMission};
 </script>
 </body>
 </html>
