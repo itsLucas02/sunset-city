@@ -35,6 +35,11 @@
   #mtitle{color:#fff;font-weight:700;font-size:12px;letter-spacing:2px;text-shadow:0 2px 0 rgba(0,0,0,.8)}
   #mtimer{font-family:Impact,'Arial Black',sans-serif;font-size:26px;color:#ffd23f;letter-spacing:3px;line-height:1.1;text-shadow:0 2px 0 rgba(0,0,0,.85)}
   #mtimer.low{color:#ff5a3c;animation:blink .5s infinite}
+  #taxibar{top:86px;left:50%;transform:translateX(-50%);display:none;background:rgba(8,10,14,.6);border-radius:4px;border-bottom:2px solid #ff8c42;padding:5px 14px}
+  #ttaxi{color:#ffc896;font-weight:700;font-size:11px;letter-spacing:2px;text-shadow:0 2px 0 rgba(0,0,0,.8)}
+  #pkgs{font-size:9px;font-weight:700;color:#d9b96a;letter-spacing:1.5px;margin-top:3px;text-shadow:0 2px 0 rgba(0,0,0,.8)}
+  #night{position:fixed;inset:0;z-index:1;pointer-events:none;background:#0a1030;opacity:0}
+  #tod{position:fixed;left:16px;bottom:198px;z-index:4;color:#e8ecf1;font-family:Impact,'Arial Black',sans-serif;font-size:14px;letter-spacing:2px;text-shadow:0 2px 0 rgba(0,0,0,.85);background:rgba(8,10,14,.5);border-radius:4px;padding:3px 9px}
   .bar{width:132px;height:9px;background:rgba(8,10,14,.66);border:1px solid rgba(255,255,255,.28);border-radius:5px;margin:7px 0 0 auto;overflow:hidden}
   #hpfill{height:100%;width:100%;background:#57c15a;border-radius:4px}
   #carbarwrap{display:none}
@@ -60,7 +65,7 @@
   <div><span class="k">E</span> <b>enter / exit car · answer phones</b></div>
   <div><span class="k">SPACE</span> <b>handbrake</b></div>
   <div><span class="k">H</span> <b>horn</b> &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; <b>P</b> pause</div>
-  <div style="margin-top:4px;color:#8b939e">steal a ride · answer the phone · outrun the heat</div>
+  <div style="margin-top:4px;color:#8b939e">steal a ride · answer the phone · outrun the heat · find the packages</div>
 </div>
 <div id="hint" class="ov"></div>
 <div id="toast" class="ov"></div>
@@ -74,18 +79,24 @@
   <div class="bar" id="carbarwrap"><div id="carfill"></div></div>
   <div id="money">$0</div>
   <div id="mcount">MISSIONS · 0</div>
+  <div id="pkgs">PACKAGES 0 / 25</div>
 </div>
 <div id="missionbar" class="ov">
   <div id="mtitle"></div>
   <div id="mtimer">0:00</div>
 </div>
+<div id="taxibar" class="ov">
+  <div id="ttaxi"></div>
+</div>
+<div id="night"></div>
+<div id="tod">08:40</div>
 <canvas id="minimap" width="172" height="172"></canvas>
 <div id="wasted">WASTED</div>
 <div id="title">
   <h1>SUNSET CITY</h1>
   <div class="sub">A TOP-DOWN JOYRIDE</div>
   <div class="press">PRESS ANY KEY</div>
-  <div class="foot">steal a ride · answer the phone · outrun the heat</div>
+  <div class="foot">steal a ride · answer the phone · drive a cab · watch the sun go down</div>
 </div>
 <script>window.onerror=function(m){var e=document.getElementById('errbox');e.style.display='block';e.textContent+='Error: '+m+'\n';};</script>
 <script>/*__THREE__*/</script>

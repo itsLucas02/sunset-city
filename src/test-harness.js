@@ -297,6 +297,94 @@ if (DBG.player.hp !== 100 || DBG.player.state !== 'foot') throw new Error('respa
 console.log('wasted cancels the mission OK');
 frames(400);                            // settle phones / cops stand down
 
+// --- 8. v4: packages, props, explosions, taxi, day/night ---
+// 8a. hidden packages
+if (DBG.pkgs.length < 20) throw new Error('too few packages spawned: ' + DBG.pkgs.length);
+const pkN = DBG.pkgs.length, moneyPk = DBG.wallet.money;
+DBG.player.pos.x = DBG.pkgs[0].x;
+DBG.player.pos.z = DBG.pkgs[0].z;
+frames(4);
+if (DBG.pkgs.length !== pkN - 1) throw new Error('package was not collected');
+if (DBG.wallet.money !== moneyPk + 100) throw new Error('package paid wrong amount');
+console.log('package collected —', (25 - DBG.pkgs.length) + '/25 found, wallet $' + DBG.wallet.money);
+
+// 8b. destructible props — drive through a hydrant and a trash can
+const hyd = DBG.props.hydrants.find(h => !h.broken);
+if (!hyd) throw new Error('no hydrants spawned');
+const cn = DBG.props.cans.find(c => !c.broken);
+if (!cn) throw new Error('no trash cans spawned');
+const smashCar = enterSomeCar();
+smashCar.hp = 99999; smashCar.maxHp = 99999;
+smashCar.pos.x = hyd.x - 3; smashCar.pos.z = hyd.z;
+smashCar.h = -Math.PI / 2; smashCar.vel.x = 13; smashCar.vel.z = 0;
+frames(10);
+if (!hyd.broken) throw new Error('hydrant did not break when hit');
+smashCar.pos.x = cn.x - 3; smashCar.pos.z = cn.z;
+smashCar.h = -Math.PI / 2; smashCar.vel.x = 13; smashCar.vel.z = 0;
+frames(10);
+if (!cn.broken) throw new Error('trash can did not break when hit');
+frames(30);                             // let the can settle
+console.log('props OK — hydrant geyser + flying trash can');
+
+// 8c. explosions — wrecked cars burn, then blow up with area damage
+down('KeyE'); frames(2); up('KeyE');     // get out of the car
+if (DBG.player.state !== 'foot') throw new Error('could not exit before explosion test');
+DBG.player.pos.x = 480; DBG.player.pos.z = 480;   // far corner, out of blast range
+const boomVictim = DBG.cars.find(c => c.mode === 'ai');
+boomVictim.mode = 'parked'; boomVictim.pos.x = 60; boomVictim.pos.z = 60; boomVictim.vel.x = 0; boomVictim.vel.z = 0;
+const boomNeighbor = DBG.cars.find(c => c.mode === 'ai' && c !== boomVictim);
+boomNeighbor.mode = 'parked'; boomNeighbor.pos.x = 64; boomNeighbor.pos.z = 60; boomNeighbor.vel.x = 0; boomNeighbor.vel.z = 0;
+const hpN = boomNeighbor.hp;
+DBG.wreck(boomVictim);
+frames(470);                            // ~7.8s > 7s fuse
+if (DBG.cars.includes(boomVictim)) throw new Error('wrecked car did not explode');
+if (boomNeighbor.hp >= hpN) throw new Error('explosion did not damage the neighbor car');
+console.log('explosion OK — victim removed, neighbor hp', hpN.toFixed(0), '→', boomNeighbor.hp.toFixed(0));
+
+// 8d. taxi fares — hail, pick up, drop off, get paid
+const moneyT = DBG.wallet.money;
+const cab = DBG.spawnCab(DBG.player.pos.x + 3, DBG.player.pos.z);
+DBG.player.pos.x = cab.pos.x + 1.5;
+DBG.player.pos.z = cab.pos.z;
+down('KeyE'); frames(2); up('KeyE');
+if (DBG.player.car !== cab) throw new Error('could not enter the cab');
+DBG.forceHail();
+frames(3);
+if (DBG.taxi.mode !== 'hail' || !DBG.taxi.ped) throw new Error('no passenger hailed the cab');
+const farePed = DBG.taxi.ped;
+cab.pos.x = farePed.pos.x; cab.pos.z = farePed.pos.z;
+cab.vel.x = 0; cab.vel.z = 0;
+frames(4);
+if (DBG.taxi.mode !== 'riding' || !DBG.taxi.dest) throw new Error('passenger did not board');
+cab.pos.x = DBG.taxi.dest.x; cab.pos.z = DBG.taxi.dest.z;
+cab.vel.x = 0; cab.vel.z = 0;
+frames(4);
+if (DBG.taxi.mode !== 'off') throw new Error('fare did not complete at the drop-off');
+if (DBG.wallet.money <= moneyT) throw new Error('fare was not paid');
+console.log('taxi OK — fare paid, wallet $' + moneyT + ' → $' + DBG.wallet.money);
+// timeout failure
+DBG.forceHail();
+frames(3);
+cab.pos.x = DBG.taxi.ped.pos.x; cab.pos.z = DBG.taxi.ped.pos.z;
+cab.vel.x = 0; cab.vel.z = 0;
+frames(4);
+DBG.taxi.tLeft = 0.05;
+const moneyT2 = DBG.wallet.money;
+frames(5);
+if (DBG.taxi.mode !== 'off') throw new Error('timed-out fare did not reset');
+if (DBG.wallet.money !== moneyT2) throw new Error('timed-out fare paid anyway');
+console.log('taxi timeout OK — no pay');
+down('KeyE'); frames(2); up('KeyE');     // leave the cab
+
+// 8e. day / night cycle
+DBG.setDayT(0.5); frames(3);
+if (DBG.nightF() > 0.2) throw new Error('noon should be day, nightF=' + DBG.nightF().toFixed(2));
+DBG.setDayT(0.0); frames(3);
+if (DBG.nightF() < 0.7) throw new Error('midnight should be night, nightF=' + DBG.nightF().toFixed(2));
+console.log('day/night OK — midnight nightF =', DBG.nightF().toFixed(2));
+DBG.setDayT(0.36); frames(3);
+frames(400);                            // settle
+
 // --- assertions ---
 for (const c of DBG.cars) {
   if (!finite(c.pos.x) || !finite(c.pos.z) || !finite(c.h)) throw new Error('car NaN: ' + c.type.name);

@@ -41,18 +41,29 @@ hosted build on GitHub Pages once enabled.
   drop that trips the alarm — instant wanted stars). Finish before the
   timer for a cash time bonus; cash and completed-mission count persist
   via `localStorage`
-- **Procedural audio** — engine, tire skid, horn, crashes, police siren,
-  phone ring, mission jingle (pure WebAudio, no files)
+- **Explosions & destructibles** — totalled cars smoke, catch fire, then
+  blow up: shockwave, sparks, scorch mark, area damage and chain
+  reactions. Smash fire hydrants for a water geyser and send trash cans
+  flying
+- **Hidden packages** — 25 briefcases tucked around the city ($100 each,
+  +$2,500 for the set); collected ones stay collected
+- **Taxi fares** — steal a Cabbie and passengers hail you from the curb;
+  timed drop-offs pay cash, streaks pay ×1.5
+- **Day / night cycle** — a full day every ~3½ minutes: sunset glow,
+  dusk, night with glowing street lamps and headlight pools, dawn; a
+  clock by the minimap
+- **Procedural audio** — engine, tire skid, horn, crashes, explosions,
+  police siren, phone ring, mission jingle (pure WebAudio, no files)
 
 ## Project structure
 
 ```
 index.html              ← the playable game (single file)
-src/game.js             ← all game source (~1,950 lines, sectioned)
+src/game.js             ← all game source (~2,600 lines, sectioned)
 src/index.template.html ← HTML shell + HUD markup/CSS
 src/three.min.js        ← vendored three.js r128
 src/build.py            ← bundles the above into index.html
-src/test-harness.js     ← headless test: stubs DOM/WebGL, simulates ~125s
+src/test-harness.js     ← headless test: stubs DOM/WebGL, simulates ~140s
                            of gameplay with scripted input, asserts sanity
 ```
 
