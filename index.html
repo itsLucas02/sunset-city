@@ -445,10 +445,25 @@ const CAR_TYPES=[
 const POLICE_IDX=5;
 const ZERO_INP={throttle:0,steer:0,handbrake:false};
 let simNow=0;                        // game clock (seconds, pauses with the game)
-// shared headlight-pool geometry/material (night driving)
-const headPoolGeo=new THREE.PlaneGeometry(4.6,7.5);
-const headPoolMat=new THREE.MeshBasicMaterial({color:0xffedb0,transparent:true,opacity:0.14,
-  blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+// shared headlight-pool geometry/material (night driving) — soft two-lobe
+// glow painted on a canvas so there are no hard rectangle edges
+const headPoolTex=(function(){
+  const c=document.createElement('canvas');c.width=256;c.height=256;
+  const x=c.getContext('2d');
+  const lobe=(cx,ang)=>{
+    x.save();x.translate(cx,196);x.rotate(ang);x.scale(1,2.35);
+    const rg=x.createRadialGradient(0,0,3,0,0,52);
+    rg.addColorStop(0,'rgba(255,242,196,0.85)');
+    rg.addColorStop(0.45,'rgba(255,228,158,0.30)');
+    rg.addColorStop(1,'rgba(255,228,158,0)');
+    x.fillStyle=rg;x.beginPath();x.arc(0,0,52,0,Math.PI*2);x.fill();x.restore();
+  };
+  lobe(96,-0.10);lobe(160,0.10);
+  return new THREE.CanvasTexture(c);
+})();
+const headPoolGeo=new THREE.PlaneGeometry(6.2,9.6);
+const headPoolMat=new THREE.MeshBasicMaterial({map:headPoolTex,transparent:true,opacity:0.85,
+  blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
 
 function buildCarMesh(T,colorHex){
   const g=new THREE.Group();
@@ -481,7 +496,7 @@ function buildCarMesh(T,colorHex){
   // night-time headlight pool on the road ahead (visible only after dark)
   const headPool=new THREE.Mesh(headPoolGeo,headPoolMat);
   headPool.rotation.x=-Math.PI/2;
-  headPool.position.set(0,0.07,-T.len/2-2.6);
+  headPool.position.set(0,0.07,-T.len/2-3.6);
   headPool.visible=false;g.add(headPool);
   if(T.taxi){
     const sign=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.26,0.42),matOf(0xe8b53a));
@@ -1238,8 +1253,10 @@ function wantedTick(dt){
     if(d<nearest)nearest=d;
   }
   if(nearest<75)wanted.lastCopSeen=simNow;
-  if(wanted.heat>0&&simNow-wanted.lastCopSeen>6){
-    wanted.heat=Math.max(0,wanted.heat-22*dt);
+  // heat cools slowly: 9s grace after last spotted, then a rate that scales
+  // with the current star level (5 + stars*5 per second)
+  if(wanted.heat>0&&simNow-wanted.lastCopSeen>9){
+    wanted.heat=Math.max(0,wanted.heat-(5+starsFromHeat()*5)*dt);
   }
   const stars=starsFromHeat();
   const desired=WANTED_COPS[stars];

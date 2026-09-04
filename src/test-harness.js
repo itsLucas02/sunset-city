@@ -15,7 +15,11 @@ THREE.WebGLRenderer = function () {
 };
 
 const ctxStub = new Proxy({}, {
-  get: (t, p) => (typeof p === 'string' ? (() => {}) : undefined),
+  get: (t, p) => {
+    if (p === 'createRadialGradient' || p === 'createLinearGradient')
+      return () => ({ addColorStop() {} });
+    return (typeof p === 'string' ? (() => {}) : undefined);
+  },
   set: () => true,
 });
 const makeEl = () => ({
@@ -187,9 +191,10 @@ if (copsNow().length !== 0) throw new Error('police did not stand down at zero h
 // heat decays while evading (no cops in sight)
 DBG.wanted.noSpawn = true;
 for (const c of DBG.cars.filter(c => c.mode === 'police')) DBG.removeCar(c);
+for (const c of DBG.cars.filter(c => c.disabled)) DBG.removeCar(c);   // no fuse-explosions re-adding heat
 DBG.wanted.heat = 300;
 DBG.wanted.lastCopSeen = -9999;
-frames(1500);                           // 25s > 6s grace + 300/22 decay
+frames(2000);                           // 33s: star-scaled decay 300→0 (~29s)
 console.log('heat after evasion:', DBG.wanted.heat.toFixed(1), 'stars:', DBG.wanted.stars);
 if (DBG.wanted.heat > 0) throw new Error('heat did not decay while evading');
 DBG.wanted.noSpawn = false;
